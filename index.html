@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>厄瓜多尔铜金项目 · 矿点与矿权</title>
+<!-- Leaflet 1.9.4 本地副本（lib/），不走 CDN：unpkg / jsdelivr 在大陆网络下
+     会 ERR_CONNECTION_TIMED_OUT，CDN 挂了整张地图就是白屏。
+     字体与 ESRI 底图仍走在线，那两者实测可达。 -->
+<link rel="stylesheet" href="lib/leaflet.css" />
+<script src="data.js?v=1793781082"></script>
+<script src="geo.js?v=1793840558"></script>
+<script src="lib/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+/* 洛阳钼业品牌色板（2026-10-14 从 cmoc.com 样式表实测）：
+   主色紫 #4C3B8C / 深阶 #3A2C6B / 浅底 #EBE7F3，辅色绿 #6FBA2C，
+   正文 #222222 / 次要 #454545 / 灰 #7A7A7A，分隔线 #DCD8E8。
+   表头主色填充 + 白字，强调线与计数用辅色绿。 */
+:root{
+  --bg:#F7F6FB; --card:#FFFFFF; --muted:#F0EDF7; --muted-fg:#7A7A7A;
+  --fg:#222222; --line:#DCD8E8; --line-strong:#C9C2DC;
+  --accent:#4C3B8C; --accent-deep:#3A2C6B; --accent-mid:#5B4A99;
+  --accent-dim:#EBE7F3; --green:#6FBA2C; --green-deep:#4E8A1A;
+  --header-h:52px; --sidebar-w:292px;
+  --sans:'Inter','Noto Sans SC',system-ui,sans-serif;
+  --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+  --shadow:0 6px 22px rgba(76,59,140,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  height:100vh;overflow:hidden;background:var(--bg);color:var(--fg);
+  font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------------------------------------------------------------- header */
+header{
+  height:var(--header-h);display:flex;align-items:center;gap:14px;padding:0 16px;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);position:relative;z-index:1200;
+}
+.logo{width:26px;height:26px;border-radius:7px;flex:none;
+  background:linear-gradient(140deg,#5B4A99,#4C3B8C)}
+.ht{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.ht b{font-size:14px;font-weight:600;letter-spacing:.01em}
+.ht span{font-size:11px;color:var(--muted-fg)}
+.tabs{display:flex;gap:4px;margin-left:18px;background:var(--muted);
+  border-radius:8px;padding:3px}
+.tabs button{padding:5px 14px;border-radius:6px;color:var(--muted-fg);
+  font-size:12px;font-weight:500;transition:background .12s,color .12s}
+.tabs button.on{background:var(--accent);color:#fff;box-shadow:none}
+.tabs button:hover:not(.on){color:var(--fg)}
+.kpis{margin-left:auto;display:flex;gap:6px;align-items:center}
+.kpi{background:var(--muted);border-radius:8px;padding:4px 10px;display:flex;
+  align-items:baseline;gap:6px}
+.kpi b{font-family:var(--mono);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi span{font-size:10px;color:var(--muted-fg);letter-spacing:.06em}
+.kpi.dim b{color:var(--green-deep)}
+
+/* ---------------------------------------------------------------- layout */
+.layout{display:flex;height:calc(100vh - var(--header-h));position:relative}
+nav{
+  width:var(--sidebar-w);flex:none;overflow-y:auto;overflow-x:hidden;
+  background:var(--card);backdrop-filter:blur(14px);
+  border-right:1px solid var(--line);padding:12px 12px 24px;
+}
+nav::-webkit-scrollbar{width:8px}
+nav::-webkit-scrollbar-thumb{background:rgba(76,59,140,.22);border-radius:4px}
+.sec-h{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted-fg);margin:2px 0 8px;display:flex;justify-content:space-between;align-items:center}
+.sec-h + .sec-h{margin-top:18px}
+.sec-h button{font-family:var(--sans);font-size:10px;letter-spacing:0;text-transform:none;
+  color:var(--accent)}
+.sec-h button:hover{text-decoration:underline}
+.sec-h .hint2{font-family:var(--sans);font-size:9.5px;letter-spacing:0;text-transform:none;
+  color:#9A93AE}
+.search{width:100%};background:var(--muted);border:1px solid transparent;border-radius:8px;
+  padding:7px 10px;color:var(--fg);font-size:12px;font-family:inherit;outline:none;margin-bottom:2px}
+.search::placeholder{color:#9A93AE}
+.search:focus{border-color:var(--accent);background:#fff}
+
+/* chips */
+#chips{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 2px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:var(--muted);
+  border:1px solid var(--line-strong);border-radius:999px;padding:3px 7px 3px 8px;
+  font-size:11px;color:var(--fg);max-width:100%}
+.chip i{font-family:var(--mono);font-size:9px;color:var(--muted-fg);font-style:normal;
+  letter-spacing:.06em}
+.chip .x{cursor:pointer;color:var(--muted-fg);font-size:13px;line-height:1;padding:0 1px}
+.chip .x:hover{color:var(--fg)}
+
+/* tree rows */
+.leaf{display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:6px;
+  cursor:pointer;font-size:12px;color:#454545}
+.leaf:hover{background:var(--muted)}
+.leaf .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.box{width:12px;height:12px;border:1px solid var(--line-strong);border-radius:3px;flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;
+  line-height:1}
+.leaf.zero{opacity:.35}
+.leaf.on .box{background:var(--accent);border-color:var(--accent)}
+.leaf.on .box::after{content:'✓';font-weight:700}
+.leaf .n{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted-fg);
+  font-variant-numeric:tabular-nums;flex:none}
+.leaf .sw{width:10px;height:10px;border-radius:2px;flex:none}
+.leaf .sh{width:12px;height:12px;flex:none;display:block}
+.co-box{max-height:252px;overflow-y:auto;overflow-x:hidden;padding-right:2px;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-top:4px;padding-bottom:4px}
+.co-box::-webkit-scrollbar{width:7px}
+.co-box::-webkit-scrollbar-thumb{background:rgba(76,59,140,.22);border-radius:4px}
+.co-div{height:1px;background:var(--line);margin:5px 2px}
+.bases{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.bases button{padding:6px 4px;border-radius:6px;background:var(--muted);
+  border:1px solid transparent;font-size:11px;color:var(--muted-fg);
+  transition:background .12s,color .12s}
+.bases button:hover{color:var(--fg)}
+.bases button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ---------------------------------------------------------------- map */
+#map-wrap{flex:1;position:relative;min-width:0;z-index:0}
+#map{position:absolute;inset:0;background:#EDEAF5}
+/* 1982 扫描件按 multiply 叠在底图上：白纸部分透出底图，只有填色压暗。
+   混合模式要加在「窗格」上而不是 img 上 —— 窗格自己有 z-index，形成独立层叠上下文，
+   加在 img 上只会和窗格内部混合，白底就盖住底图了。 */
+.leaflet-geoTile-pane{mix-blend-mode:multiply}
+.leaflet-container{background:#EDEAF5;font-family:var(--sans)}
+.leaflet-control-zoom a{background:var(--card);color:var(--fg);border-color:var(--line)!important;
+  backdrop-filter:blur(14px)}
+.leaflet-control-zoom a:hover{background:#F3F0FA;color:var(--accent)}
+.leaflet-control-attribution{background:rgba(255,255,255,.86)!important;color:#7A7A7A!important;
+  font-size:10px!important}
+.leaflet-control-attribution a{color:#4C3B8C!important}
+.leaflet-control-scale-line{background:rgba(255,255,255,.82)!important;color:#454545!important;
+  border-color:rgba(76,59,140,.38)!important;font-size:10px!important}
+
+/* mine symbol */
+.mine-dot-wrap{background:none;border:0}
+.mine-shape{display:block;filter:drop-shadow(0 1px 1.5px rgba(34,34,34,.5))}
+
+/* 矿名标签：不画底衬，只用白色描边把字从底图上抠出来。
+   47 个标签如果每个都做成色块，地图会被切碎；描边足够压住地形纹理。 */
+.mlbl-wrap{background:none;border:0}
+.mlbl{position:absolute;left:0;top:0;font-size:10px;font-weight:600;letter-spacing:.01em;
+  color:#2A2438;white-space:nowrap;pointer-events:none;
+  text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 4px #fff,0 1px 0 #fff}
+.mlbl.side-r {transform:translate(9px,-50%)}
+.mlbl.side-l {transform:translate(calc(-100% - 9px),-50%)}
+.mlbl.side-t {transform:translate(-50%,calc(-100% - 9px))}
+.mlbl.side-b {transform:translate(-50%,9px)}
+.mlbl.side-tr{transform:translate(9px,calc(-100% - 9px))}
+.mlbl.side-tl{transform:translate(calc(-100% - 9px),calc(-100% - 9px))}
+.mlbl.side-br{transform:translate(9px,9px)}
+.mlbl.side-bl{transform:translate(calc(-100% - 9px),9px)}
+#map-wrap.on-dark .mlbl{color:#F8FAFC;
+  text-shadow:0 0 3px #020617,0 0 3px #020617,0 0 5px #020617,0 1px 0 #020617}
+
+/* province label */
+/* 省界与省名按底图明暗切换：地形/街道是浅底，卫星是深底。
+   省名带一块半透明底衬 —— 底图自带城市名，光靠描边会在 Quito / Ibarra / Riobamba
+   这些地方和省名糊成一团，加底衬才能保证两个层级都读得出来。 */
+#map-wrap{--prov:#475569; --prov-op:.55; --lbl:#3F4E63; --lbl-bg:rgba(255,255,255,.76);
+  --lbl-bd:rgba(71,85,105,.20)}
+#map-wrap.on-dark{--prov:#CBD5E1; --prov-op:.6; --lbl:#E2E8F0; --lbl-bg:rgba(2,6,23,.62);
+  --lbl-bd:rgba(203,213,225,.32)}
+.leaflet-prov-pane path{stroke:var(--prov)!important;stroke-opacity:var(--prov-op)!important}
+.prov-lbl{background:none;border:0;pointer-events:none}
+.prov-lbl span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;
+  color:var(--lbl);white-space:nowrap;background:var(--lbl-bg);
+  border:1px solid var(--lbl-bd);border-radius:3px;padding:1px 4px;line-height:1.35;
+  display:inline-block;
+  /* 上抬 15px：省会城市基本压在省的几何中心上，不抬就会正好盖住 Quito / Guayaquil 这些地名 */
+  transform:translate(-50%,calc(-50% - 15px))}
+
+/* legend */
+#legend{left:12px;bottom:12px;padding:10px 12px;max-height:62vh;overflow-y:auto}
+#legend::-webkit-scrollbar{width:7px}
+#legend::-webkit-scrollbar-thumb{background:rgba(76,59,140,.22);border-radius:4px}
+.lg-t{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted-fg);margin:0 0 6px}
+.lg-t + .lg-row{margin-top:0}
+.lg-blk + .lg-blk{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+.lg-row{display:flex;align-items:center;gap:8px;padding:2px 0;font-size:11.5px;color:#454545}
+.lg-row .lg-s{width:14px;height:12px;flex:none;display:block}
+.lg-row .sw{width:10px;height:10px;border-radius:2px;flex:none}
+.lg-row .n{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted-fg)}
+.panel{position:absolute;background:var(--card);backdrop-filter:blur(14px);
+  border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);z-index:800}
+
+/* popup */
+.leaflet-popup-content-wrapper{background:var(--card);backdrop-filter:blur(14px);color:var(--fg);
+  border:1px solid var(--line-strong);border-radius:14px;box-shadow:var(--shadow);padding:0}
+.leaflet-popup-content{margin:0;width:330px!important;font-size:12px;line-height:1.5}
+.leaflet-popup-tip{background:#fff;border:1px solid var(--line-strong)}
+.leaflet-popup-close-button{color:var(--muted-fg)!important;font-size:18px!important;
+  padding:8px 9px 0 0!important}
+.leaflet-popup-close-button:hover{color:var(--fg)!important}
+.pp{padding:13px 15px 14px}
+.pp-h{display:flex;align-items:center;gap:7px;margin-bottom:3px;padding-right:14px}
+.pp-h .ico{flex:none;display:block}
+.pp-h h3{margin:0;font-size:14.5px;font-weight:600;letter-spacing:.01em;line-height:1.3;
+  flex:1;min-width:0}
+.pp-h .st{flex:none;height:17px;border-radius:999px;padding:0 7px;font-size:10px;
+  line-height:17px;font-weight:600;white-space:nowrap}
+.st-n{background:var(--accent-dim);color:var(--accent);border:1px solid #D8D0EA}
+.pp-meta{color:var(--muted-fg);font-size:11px;margin-bottom:10px}
+.pp-sec{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);margin:11px 0 5px;padding-top:9px;border-top:1px solid var(--line)}
+.pp-sec.first{border-top:0;padding-top:0;margin-top:0}
+.pp table{width:100%;border-collapse:collapse}
+.pp td{padding:2px 0;vertical-align:top;font-size:11.5px}
+.pp td.k{color:var(--muted-fg);width:84px;padding-right:8px;white-space:nowrap}
+.pp td.v{color:var(--fg)}
+.pp .why{color:#454545;font-size:11px;line-height:1.55}
+.pp .note{color:#454545;font-size:11.5px;line-height:1.6;margin-top:2px}
+.pp-sub{font-size:10.5px;color:var(--muted-fg);margin:6px 0 2px}
+.pp-note{margin-top:9px;font-size:10px;line-height:1.5;color:#8A8A8A}
+.pp-claim h3{font-size:13px}
+.pp-claim .tag{display:inline-block;height:16px;line-height:16px;border-radius:3px;
+  padding:0 5px;font-size:9.5px;font-weight:600;color:#fff}
+
+/* ---------------------------------------------------------------- 明细 tab */
+#detail{position:absolute;inset:0;background:var(--bg);display:none;z-index:900;
+  flex-direction:column}
+#detail.on{display:flex}
+.d-bar{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:13px 18px 11px;border-bottom:1px solid var(--line);background:var(--bg)}
+.d-bar .h{font-size:13px;font-weight:600}
+.d-bar .hint{font-size:11px;color:var(--muted-fg)}
+.d-bar .search{width:230px;margin:0;margin-left:auto}
+.d-reset{display:none;padding:5px 10px;border-radius:7px;background:var(--accent-dim);
+  color:var(--accent);font-size:11px;font-weight:500;border:1px solid #D8D0EA}
+.d-reset:hover{background:#E3DDF2}
+.d-reset.on{display:inline-block}
+/* 横拉框必须常驻在视口底部：表格自己滚（overflow:auto），它的横轴滚动条就永远
+   贴在 #detail 的底边，不用先把页面拉到最下面。 */
+.d-scroll{flex:1;min-height:0;overflow:auto}
+.d-scroll::-webkit-scrollbar{width:10px;height:11px}
+.d-scroll::-webkit-scrollbar-thumb{background:rgba(76,59,140,.26);border-radius:5px;
+  border:2px solid var(--bg)}
+.d-scroll::-webkit-scrollbar-track{background:rgba(76,59,140,.05)}
+.d-pad{width:max-content;min-width:100%;padding:14px 18px 28px}
+table.grid{table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:11.5px;
+  background:var(--card);border:1px solid var(--line)}
+table.grid th,table.grid td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+table.grid td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.grid td.wrap{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.5}
+table.grid thead th{position:sticky;top:0;background:var(--accent);z-index:2;
+  font-weight:600;font-size:10.5px;color:#fff;white-space:nowrap;cursor:pointer;user-select:none}
+table.grid thead tr.g th{background:var(--accent-deep);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.78);cursor:default;
+  border-bottom:1px solid var(--accent-deep);padding:0 8px;height:25px;line-height:25px;top:0}
+table.grid thead tr:nth-child(2) th{top:25px}
+table.grid thead th:hover{color:#EDE7FA}
+table.grid thead th .u{color:rgba(255,255,255,.62);font-weight:400;font-size:9.5px}
+table.grid tbody tr:hover{background:#FAF8FD}
+table.grid td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+table.grid td.name{font-weight:600;white-space:nowrap}
+table.grid td.long{color:#454545;font-size:10.8px;line-height:1.5;white-space:normal;
+  overflow:visible}
+.foot{max-width:1180px;margin:18px 0 0;padding:14px 16px;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;font-size:11px;line-height:1.75;color:#454545}
+.foot b{color:var(--accent);font-weight:600}
+.foot ol{margin:6px 0 0;padding-left:18px}
+.foot li{margin:3px 0}
+.sort-ar{color:#C7E8A0;font-size:9px;margin-left:3px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"></div>
+  <div class="ht">
+    <b>厄瓜多尔铜金项目</b>
+    <span id="subtitle"></span>
+  </div>
+  <div class="tabs">
+    <button id="tab-map" class="on">地图</button>
+    <button id="tab-detail">明细</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b id="kpiMines">0</b><span>矿点</span></div>
+    <div class="kpi"><b id="kpiClaims">0</b><span>矿权</span></div>
+    <div class="kpi dim"><b id="kpiShown">0</b><span>显示矿点</span></div>
+    <div class="kpi dim"><b id="kpiClaimShown">0</b><span>显示矿权</span></div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav>
+    <div class="sec-h">筛选<span><button id="reset">重置</button></span></div>
+    <input class="search" id="q" placeholder="搜索项目 / 公司 / 所有者…" autocomplete="off" />
+    <div id="chips"></div>
+
+    <div class="sec-h" style="margin-top:14px">矿种 · 颜色</div>
+    <div id="treeComm"></div>
+
+    <div class="sec-h">阶段 · 形状</div>
+    <div id="treeStage"></div>
+
+    <div class="sec-h">控股方<span class="hint2" id="coCount"></span></div>
+    <div class="co-box" id="treeCo"></div>
+
+    <div class="sec-h">叠加</div>
+    <div id="ovl">
+      <div class="leaf" data-ovl="A"><div class="box"></div>
+        <span class="lbl">地质 · 1:5M 矢量</span></div>
+      <div class="leaf" data-ovl="B"><div class="box"></div>
+        <span class="lbl">地质 · 1982 扫描</span></div>
+    </div>
+
+    <div class="sec-h">底图</div>
+    <div class="bases" id="bases"></div>
+  </nav>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div class="panel" id="legend"></div>
+  </div>
+
+  <div id="detail">
+    <div class="d-bar">
+      <div class="h">项目明细</div>
+      <div class="hint" id="dHint"></div>
+      <input class="search" id="dq" placeholder="搜索…" autocomplete="off" />
+      <button class="d-reset" id="dReset">恢复默认排序</button>
+    </div>
+    <div class="d-scroll">
+      <div class="d-pad">
+        <table class="grid" id="grid"></table>
+        <div class="foot" id="foot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.__ERR = [];
+window.addEventListener('error', function(e){
+  window.__ERR.push(String(e.message)+' @'+e.filename+':'+e.lineno);
+});
+window.addEventListener('unhandledrejection', function(e){
+  window.__ERR.push('reject: '+e.reason);
+});
+(function(){
+'use strict';
+var D = window.DASHBOARD_DATA;
+
+var mines = D.mines, claims = D.claims, provinces = D.provinces || [];
+var C = D.colors, N = '#8a949e';
+var FOOTNOTES = ["口径说明：", "1. 储量 = Proven + Probable；M+I = Measured + Indicated；M+II = Measured + Indicated + Inferred（全部资源量）。三者是包含关系，不可相加。", "2. M+II 优先取技术报告 Total Resources 行；S&P 的「资源量」字段为 Total Resources Excl Reserves（不含储量），已单独换算，未与储量相加。", "3. 品位：有储量者取储量表品位；无储量者由 M+II 含金属量 ÷ 矿石量反算，仅作量级参考。", "4. 企业市值取 2026-11-02 收盘，A 股/港股用东方财富总市值，加/澳/美用 stockanalysis.com；汇率 USD/CNY 6.6483、USD/HKD 7.8461、USD/CAD 1.3974、USD/AUD 1.4269。市值不乘项目权益。", "5. 「详细阶段」已按技术报告与公开信息修正，「S&P 原始阶段」保留原值；两者不一致的即 S&P 高估（详见 盘点说明与关键发现.md 第四节）。", "6. 「阶段」为五档概况，用于筛选：生产（在产）3 个、开发（FS 完成且项目在推进）2 个、可研（PEA/PFS 完成或 FS 在途）6 个、勘探（高级勘探/绿地，从未有正式经济研究）19 个、停产（曾产或研究后中止）17 个。", "7. 阶段判定规则：标签只描述**已经完成的事实**，「FS 完成」须有已发布/已提交的 FS 报告；研究在途、FID 未定、许可未批等状态写在「阶段判定依据」，不并入标签。标注「PFS 完成，FS 在途」者指 FS 已启动但报告尚未发布。括号内为该项的当前处境（停工、许可被撤、被法院中止、二期未获批），不改变阶段本身。", "8. 「项目状态备注」写项目当前状态、定性与前瞻，「技术口径备注」记资源量口径的疑点与变更，「阶段判定依据」记阶段标签的取证来源，三者不重复。", "9. 空值 = 未取到，不估算。El Guayabo 的 570 Mt / 6.588 Moz Au 为 100% 基础，Challenger 实际归属 431 Mt（Colorado V 仅 50%）。", "10. 数据来源：S&P Global 2026-11-01 导出 + 各项目技术报告/公司财报/官网，逐项见各项目目录 _报告清单.md。"];
+
+/* ------------------------------------------------------------ helpers */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(v,d){
+  if(v==null||v==='')return '—';
+  if(typeof v==='number'){
+    var n=v;
+    if(Math.abs(n)>=1000) n=Math.round(n);
+    else if(Math.abs(n)>=10) n=Math.round(n*10)/10;
+    else n=Math.round(n*100)/100;
+    return n.toLocaleString('en-US',{maximumFractionDigits:d==null?2:d});
+  }
+  return String(v);
+}
+function commColor(c){return C[c]||N;}
+function stageShape(s){return D.stageShapes[s]||'circle';}
+
+/* 形状 = 阶段。五个轮廓在 12–14px 下仍可辨：
+ * 圆（生产）/ 方（开发）/ 菱形（可研）/ 三角（勘探）/ 叉（停产）。
+ * 实心图形一律白描边，保证在任何底图上都不糊。 */
+var SHAPES = {
+  circle:   {d:'M6,1.2 A4.8,4.8 0 1,1 5.99,1.2 Z'},
+  square:   {d:'M1.7,1.7 H10.3 V10.3 H1.7 Z'},
+  diamond:  {d:'M6,1.1 L10.9,6 L6,10.9 L1.1,6 Z'},
+  triangle: {d:'M6,1.5 L10.6,10.4 H1.4 Z'},
+  cross:    {s:'M3.3,3.3 L8.7,8.7 M8.7,3.3 L3.3,8.7'}
+};
+function shapeSVG(sh,color,sz){
+  sz = sz||14;
+  var g = SHAPES[sh]||SHAPES.circle;
+  var inner = g.d
+    ? '<path d="'+g.d+'" fill="'+color+'" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>'
+    : '<path d="'+g.s+'" fill="none" stroke="#fff" stroke-width="4.8" stroke-linecap="round"/>'+
+      '<path d="'+g.s+'" fill="none" stroke="'+color+'" stroke-width="2.4" stroke-linecap="round"/>';
+  return '<svg class="mine-shape" width="'+sz+'" height="'+sz+'" viewBox="0 0 12 12">'+inner+'</svg>';
+}
+function dashSVG(color,dash){
+  return '<svg class="lg-s" width="14" height="12" viewBox="0 0 14 12">'+
+    '<line x1="1" y1="6" x2="13" y2="6" stroke="'+color+'" stroke-width="2.2" '+
+    (dash?'stroke-dasharray="'+dash+'"':'')+' stroke-linecap="butt"/></svg>';
+}
+
+/* ------------------------------------------------------------ basemaps */
+var ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+var BASEMAPS = [
+  {k:'topo',  n:'地形',  base:'World_Topo_Map', max:16},
+  {k:'sat',   n:'卫星',  base:'World_Imagery',  ref:'Reference/World_Boundaries_and_Places', max:16},
+  {k:'street',n:'街道',  base:'World_Street_Map', max:16}
+];
+var baseLayer=null, refLayer=null, baseKey='topo';
+var geoA=null, geoB=null, geoStruct=null, geoShown=null, provRenderer=null;
+var geoOverlay = null;                 // null | 'A' | 'B' —— 叠在任意底图之上，不换底图
+function geoMode(){ return geoOverlay!==null; }
+
+/* ------------------------------------------------------------ state */
+/* 默认：除停产外的全部阶段 + 全部矿种 + 全部公司。停产 17 个项目默认不进来，
+ * 需要看时在左侧阶段里勾上。 */
+var PRESENT_ST = {}, PRESENT_CM = {};
+mines.forEach(function(m){ PRESENT_ST[m.stage]=1; PRESENT_CM[m.commodity]=1; });
+var DEFAULT_STAGE = D.stageOrder.filter(function(s){return s!=='closed' && PRESENT_ST[s];});
+var DEFAULT_COMM  = Object.keys(C).filter(function(k){return PRESENT_CM[k];});
+var DEFAULT_CO    = D.defaultCompanies.slice();
+var sel = {stage:DEFAULT_STAGE.slice(), comm:DEFAULT_COMM.slice(),
+           co:DEFAULT_CO.slice(), q:''};
+var markers = [];          // 按 mines 下标键控，绝不按名称（S&P 名称不唯一）
+var labels = [];           // 矿名标签，与 markers 同下标、同（抖动后）坐标
+var claimPolys = [];       // 全量矿权，过滤靠 add/remove，不从数组里删
+var map, provLayer, provLbls;
+
+var nameIdx = {};
+mines.forEach(function(m,i){ nameIdx[m.name]=i; });
+
+/* ------------------------------------------------------------ filter */
+function hay(m){
+  return (m.name+' '+m.owner+' '+m.coLabel+' '+m.province+' '+m.detail+' '+m.operator).toLowerCase();
+}
+function mineHits(m, ov){
+  var st = ov&&ov.stage!=null ? ov.stage : sel.stage;
+  var cm = ov&&ov.comm!=null  ? ov.comm  : sel.comm;
+  var co = ov&&ov.co!=null    ? ov.co    : sel.co;
+  var q  = ov&&ov.q!=null     ? ov.q     : sel.q;
+  if(st.length && st.indexOf(m.stage)<0) return false;
+  if(cm.length && cm.indexOf(m.commodity)<0) return false;
+  if(co.length && !m.co.some(function(k){return co.indexOf(k)>=0;})) return false;
+  if(q && hay(m).indexOf(q)<0) return false;
+  return true;
+}
+function claimHits(c){
+  for(var k=0;k<c.p.length;k++){
+    var idx = nameIdx[c.p[k]];
+    if(idx!=null && mineHits(mines[idx])) return true;
+  }
+  return false;
+}
+
+/* ------------------------------------------------------------ map */
+function initMap(){
+  map = L.map('map',{worldCopyJump:true, preferCanvas:true, zoomControl:true,
+        zoomSnap:0.25, maxBounds:[[-8.6,-86.5],[3.6,-72.0]], maxBoundsViscosity:.85});
+  map.attributionControl.setPrefix('');
+
+  // 省界单独一层窗格（z 350，在矿权/矿点之下），用 SVG：24 条线不值得走 canvas
+  map.createPane('provPane');
+  map.getPane('provPane').style.zIndex = 350;
+  map.getPane('provPane').style.pointerEvents = 'none';
+  map.createPane('provLblPane');
+  map.getPane('provLblPane').style.zIndex = 360;
+  map.getPane('provLblPane').style.pointerEvents = 'none';
+  // 扫描件底图放在 z=250：低于矿权/矿点（overlayPane 400），高于瓦片（200）
+  map.createPane('geoTilePane');
+  map.getPane('geoTilePane').style.zIndex = 250;
+  map.getPane('geoTilePane').style.pointerEvents = 'none';
+  provRenderer = L.svg({pane:'provPane'});
+
+  setBase('topo');
+  buildProvinces(provRenderer);
+  buildClaims();
+  buildMarkers();
+
+  L.control.scale({position:'bottomright', imperial:false, maxWidth:120}).addTo(map);
+
+  // 视野框厄瓜多尔本土（加拉帕戈斯在 -90°，算进来会把太平洋拉满屏）
+  var bb = L.latLngBounds([]);
+  provinces.forEach(function(p){
+    if(p.n==='GALÁPAGOS') return;
+    p.r.forEach(function(ring){ ring.forEach(function(ll){ bb.extend(ll); }); });
+  });
+  if(!bb.isValid()) bb = L.latLngBounds(mines.map(function(m){return [m.lat,m.lng];}));
+  map.fitBounds(bb.pad(0.03), {
+    paddingTopLeft:[20, 20], paddingBottomRight:[20, 56], animate:false
+  });
+
+  var lastZ = null;
+  map.on('zoomend', function(){
+    var z = map.getZoom();
+    if(z===lastZ) return;
+    lastZ = z;
+    restyleClaims(z);
+    layoutLabels();
+    syncProvLabels();
+  });
+  renderAll();
+}
+
+function syncProvLabels(){
+  if(!provLbls) return;
+  var on = (map.getZoom()<=7.5);
+  if(on){ if(!map.hasLayer(provLbls)) provLbls.addTo(map); }
+  else  { if(map.hasLayer(provLbls)) map.removeLayer(provLbls); }
+}
+
+function setBase(k){
+  var b = BASEMAPS.filter(function(x){return x.k===k;})[0] || BASEMAPS[0];
+  baseKey = b.k;
+  if(baseLayer){ map.removeLayer(baseLayer); baseLayer=null; }
+  if(refLayer){ map.removeLayer(refLayer); refLayer=null; }
+  baseLayer = L.tileLayer(ESRI+b.base+'/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:16, maxNativeZoom:b.max||16,
+     attribution:'Esri, HERE, Garmin, OpenStreetMap contributors'}).addTo(map);
+  if(b.ref){
+    refLayer = L.tileLayer(ESRI+b.ref+'/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:16, maxNativeZoom:b.max||16}).addTo(map);
+  }
+  document.getElementById('map-wrap').classList.toggle('on-dark', b.k==='sat');
+  renderBaseBtns();
+}
+
+/* 地质叠加：勾选后在当前底图上多画一层，底图本身不动。
+ * A = 1:5M 岩性面 + 断层 + 火山；B = 1982 年扫描件（multiply 混合，白纸处透出底图）。 */
+function setGeoOverlay(k){
+  if(geoOverlay===k) k = null;                 // 再点一次取消
+  geoOverlay = k;
+  if(geoShown){ map.removeLayer(geoShown); geoShown=null; }
+  if(geoStruct && map.hasLayer(geoStruct)) map.removeLayer(geoStruct);
+  if(geoOverlay){
+    geoShown = (geoOverlay==='A') ? buildGeoA() : buildGeoB();
+    geoShown.addTo(map);
+    if(geoOverlay==='A') buildGeoStruct().addTo(map);
+  }
+  document.getElementById('map-wrap').classList.toggle('geo-mode', !!geoOverlay);
+  if(claimPolys.length) restyleClaims(map.getZoom());
+  renderOvl();
+  renderLegend();
+  layoutLabels();                              // 切换后强制重排一次，别让矿名停在旧位置
+}
+function renderOvl(){
+  var els = document.querySelectorAll('#ovl .leaf');
+  for(var i=0;i<els.length;i++){
+    els[i].classList.toggle('on', geoOverlay===els[i].getAttribute('data-ovl'));
+  }
+}
+
+/* ------------------------------------------------------------ 地质底图
+ * A = CGMW 1:5M 矢量岩性面；B = 1982 年 DGGM 1:1M 扫描件（已配准）。
+ * 两者都放在 z=250/350 的低层窗格里，矿权、矿点照旧压在上面。 */
+var ROCK_C = {Volcanic:'#C08C9F', Plutonic:'#D08A62',
+              Metamorphic:'#7C9CAC', Sedimentary:'#C3AE7C'};
+var FAULT_C = {Reverse:['#3E2C52',1.15,null], Strike:['#3F5566',1.0,null],
+               Normal:['#7A5B3E',1.0,'6,3']};
+
+function buildGeoA(){
+  if(geoA) return geoA;
+  var G = window.GEO_DATA;
+  geoA = L.layerGroup();
+  G.units.forEach(function(u){
+    L.polygon(u.r, {renderer:provRenderer, color:'#6E6070', weight:0.5, opacity:.5,
+      fillColor:ROCK_C[u.t]||'#C3AE7C', fillOpacity:.55,
+      interactive:false}).addTo(geoA);
+  });
+  return geoA;
+}
+function buildGeoB(){
+  if(geoB) return geoB;
+  var G = window.GEO_DATA;
+  geoB = L.layerGroup();
+  L.imageOverlay('geo_scan.jpg', G.scanBounds,
+    {pane:'geoTilePane', opacity:1, interactive:false}).addTo(geoB);
+  return geoB;
+}
+function buildGeoStruct(){
+  if(geoStruct) return geoStruct;
+  var G = window.GEO_DATA;
+  geoStruct = L.layerGroup();
+  G.faults.forEach(function(f){
+    var st = FAULT_C[f.k] || FAULT_C.Reverse;
+    f.c.forEach(function(ln){
+      L.polyline(ln, {renderer:provRenderer, color:st[0], weight:st[1],
+        dashArray:st[2], opacity:.9, interactive:false}).addTo(geoStruct);
+    });
+  });
+  G.volcanoes.forEach(function(v){
+    L.circleMarker([v.lat, v.lng], {renderer:provRenderer, radius: v.r?4.6:3.6,
+      color:'#7A1F14', weight:1, fillColor: v.r?'#C0392B':'#ffffff',
+      fillOpacity: v.r?1:.92, interactive:false}).addTo(geoStruct);
+  });
+  return geoStruct;
+}
+function renderBaseBtns(){
+  document.getElementById('bases').innerHTML = BASEMAPS.map(function(b){
+    return '<button data-b="'+b.k+'" class="'+(b.k===baseKey?'on':'')+'">'+b.n+'</button>';
+  }).join('');
+}
+
+/* 省界：细实线 + 省名。它属于图面家具，不参与筛选，也不跟矿权抢视觉。 */
+function buildProvinces(renderer){
+  provLayer = L.layerGroup();
+  provLbls  = L.layerGroup();
+  provinces.forEach(function(p){
+    p.r.forEach(function(ring){
+      L.polygon(ring, {
+        renderer:renderer, fill:false, color:'#475569', weight:1.1,
+        opacity:.55, interactive:false
+      }).addTo(provLayer);
+    });
+    var ic = L.divIcon({className:'prov-lbl', html:'<span>'+esc(p.n)+'</span>',
+      iconSize:null, iconAnchor:[0,0]});
+    L.marker(p.ll, {icon:ic, interactive:false, keyboard:false}).addTo(provLbls);
+  });
+  provLayer.addTo(map);
+  provLbls.addTo(map);
+}
+
+/* 矿权：中性冷灰，状态走线型。1,953 个多边形靠 canvas 撑住。
+ * 线宽随缩放变：zoom 7 时 1px 的边线在屏幕上不到半个像素，整层会"消失"。 */
+function claimStyle(c, z){
+  var g = c.stGroup;
+  var col = D.claimStatusColors[g] || '#8A949E';
+  var dash = D.claimDash[g] || '';
+  var w = z>=13?1.0 : z>=11?1.3 : z>=9?1.8 : 2.2;
+  // 线宽按底图明暗微调：卫星上要粗一点才压得住影像纹理
+  if(baseKey==='sat') w += .3;
+  var gm = geoMode();
+  return {
+    color:col, weight: gm ? w*0.7 : w, opacity: gm ? .5 : (z>=9? .85 : .8),
+    dashArray: (z>=9 && dash) ? dash : null,
+    fillColor:col, fillOpacity: gm ? .02 : (g==='granted' ? .12 : .05),
+    interactive:true
+  };
+}
+function buildClaims(){
+  claims.forEach(function(c){
+    var poly = L.polygon(c.ring, claimStyle(c, 8));
+    poly._claim = c;
+    poly.bindPopup(popupClaim(c),{maxWidth:344,minWidth:300});
+    claimPolys.push(poly);
+    poly.addTo(map);
+  });
+}
+function restyleClaims(z){
+  if(!claimPolys.length) return;
+  for(var i=0;i<claimPolys.length;i++) claimPolys[i].setStyle(claimStyle(claimPolys[i]._claim, z));
+}
+
+/* 散布 + 环形抖动（map-spec.md §3）。47 个点，O(n²) 无压力。 */
+function jittered(){
+  var out = mines.map(function(m){return {lat:m.lat, lng:m.lng, cnt:0};});
+  for(var i=0;i<out.length;i++){
+    for(var j=0;j<i;j++){
+      var dl = out[i].lat-out[j].lat, dn = (out[i].lng-out[j].lng)*Math.cos(out[i].lat*Math.PI/180);
+      if(Math.sqrt(dl*dl+dn*dn) < 0.0013){
+        var a = out[j].cnt*(2*Math.PI/8); out[j].cnt++;
+        var r = 0.028;
+        out[i].lat = mines[i].lat + r*Math.cos(a);
+        out[i].lng = mines[i].lng + r*Math.sin(a)/Math.max(0.3,Math.cos(mines[i].lat*Math.PI/180));
+      }
+    }
+  }
+  return out;
+}
+function buildMarkers(){
+  var pos = jittered();
+  mines.forEach(function(m,i){
+    var icon = L.divIcon({
+      className:'mine-dot-wrap',
+      html: shapeSVG(stageShape(m.stage), commColor(m.commodity), 14),
+      iconSize:[14,14], iconAnchor:[7,7], popupAnchor:[0,-8]
+    });
+    var mk = L.marker([pos[i].lat,pos[i].lng],{icon:icon,riseOnHover:true});
+    mk.bindPopup(popupMine(m),{maxWidth:366,minWidth:330,autoPanPadding:[24,74]});
+    markers.push(mk);
+
+    // 标签用同一组抖动坐标，否则密集区会出现「字和点分家」
+    var lic = L.divIcon({className:'mlbl-wrap',
+      html:'<span class="mlbl side-r">'+esc(m.name)+'</span>',
+      iconSize:null, iconAnchor:[0,0]});
+    labels.push(L.marker([pos[i].lat,pos[i].lng],
+      {icon:lic, interactive:false, keyboard:false, zIndexOffset:-10}));
+  });
+}
+
+/* ------------------------------------------------------------ 矿名标签排版
+ * 47 个点里，Zamora–Loja 一带十几个挤在几公里内，直接铺开会糊成一团。
+ * 做法：按矿石量从大到小贪心占位，每个标签依次试 8 个方位（右/左/上/下 + 四个斜角），
+ * 第一个不撞已放标签、也不压住别的矿点的方位就用；8 个都撞就不显示。
+ * 缩放后点位间距变了，重排一次即可 —— 字号固定为 10px，标签是注记不是地物，
+ * 跟地图一起缩放会变得要么看不清、要么占满屏。 */
+var LABEL_SIDES = ['r','l','t','b','tr','tl','br','bl'];
+var LABEL_GAP = 9;
+
+function labelBox(x, y, w, h, side){
+  if(side==='r')  return {x:x+LABEL_GAP,          y:y-h/2,            w:w, h:h};
+  if(side==='l')  return {x:x-LABEL_GAP-w,        y:y-h/2,            w:w, h:h};
+  if(side==='t')  return {x:x-w/2,                y:y-LABEL_GAP-h,    w:w, h:h};
+  if(side==='b')  return {x:x-w/2,                y:y+LABEL_GAP,      w:w, h:h};
+  if(side==='tr') return {x:x+LABEL_GAP,          y:y-LABEL_GAP-h,    w:w, h:h};
+  if(side==='tl') return {x:x-LABEL_GAP-w,        y:y-LABEL_GAP-h,    w:w, h:h};
+  if(side==='br') return {x:x+LABEL_GAP,          y:y+LABEL_GAP,      w:w, h:h};
+  return                 {x:x-LABEL_GAP-w,        y:y+LABEL_GAP,      w:w, h:h};
+}
+function boxHit(a,b){
+  return !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y);
+}
+
+function layoutLabels(){
+  if(!labels.length) return;
+  var items = [];
+  markers.forEach(function(mk,i){
+    var lb = labels[i];
+    if(!map.hasLayer(mk)){
+      if(map.hasLayer(lb)) map.removeLayer(lb);
+      return;
+    }
+    if(!map.hasLayer(lb)) lb.addTo(map);
+    var el = lb.getElement();
+    if(!el || !el.firstChild) return;
+    var span = el.firstChild;
+    span.style.display = '';            // 上一轮被藏起来的要先量得到宽度
+    var p = map.latLngToContainerPoint(mk.getLatLng());
+    items.push({i:i, m:mines[i], x:p.x, y:p.y,
+                w:span.offsetWidth||44, h:span.offsetHeight||14});
+  });
+  // 优先级与明细表默认序一致：矿石量大的先占位
+  items.sort(function(a,b){
+    var x=a.m.tMt, y=b.m.tMt;
+    if(x==null&&y==null) return a.i-b.i;
+    if(x==null) return 1;
+    if(y==null) return -1;
+    return y-x;
+  });
+  // 矿点本身也是障碍：标签压住别人的点，等于把符号抹掉了
+  var dots = items.map(function(it){ return {x:it.x-7, y:it.y-7, w:14, h:14, i:it.i}; });
+  var boxes = [];
+  items.forEach(function(it){
+    var pick = null, pickBox = null;
+    for(var k=0;k<LABEL_SIDES.length;k++){
+      var bx = labelBox(it.x, it.y, it.w, it.h, LABEL_SIDES[k]);
+      var bad = false;
+      for(var j=0;j<boxes.length;j++){ if(boxHit(bx, boxes[j])){ bad = true; break; } }
+      if(!bad){
+        for(var d=0;d<dots.length;d++){
+          if(dots[d].i===it.i) continue;
+          if(boxHit(bx, dots[d])){ bad = true; break; }
+        }
+      }
+      if(!bad){ pick = LABEL_SIDES[k]; pickBox = bx; break; }
+    }
+    var el2 = labels[it.i].getElement();
+    if(!el2 || !el2.firstChild) return;
+    var sp = el2.firstChild;
+    if(pick){
+      boxes.push(pickBox);
+      sp.className = 'mlbl side-'+pick;
+      sp.style.display = '';
+    } else {
+      sp.style.display = 'none';     // 8 个方位都放不下，这一轮先不显示
+    }
+  });
+}
+
+/* ------------------------------------------------------------ popups */
+function ppRows(pairs){
+  return pairs.filter(function(p){return p[1]!=null&&p[1]!==''&&p[1]!=='—';})
+    .map(function(p){return '<tr><td class="k">'+esc(p[0])+'</td><td class="v">'+esc(p[1])+'</td></tr>';})
+    .join('');
+}
+function ppTable(pairs){
+  var r = ppRows(pairs);
+  return r ? '<table>'+r+'</table>' : '';
+}
+
+function popupMine(m){
+  var col = commColor(m.commodity);
+  var h = '<div class="pp">';
+  h += '<div class="pp-h"><span class="ico">'+shapeSVG(stageShape(m.stage), col, 16)+'</span>'+
+       '<h3>'+esc(m.name)+'</h3>'+
+       '<span class="st st-n">'+esc(m.stageLabel)+'</span></div>';
+  h += '<div class="pp-meta">'+esc(m.commodityList||m.commodity)+' · '+esc(m.province)+'</div>';
+
+  h += '<div class="pp-sec first">项目状态</div>';
+  h += ppTable([
+    ['阶段', m.stageLabel],
+    ['详细阶段', m.detail],
+    ['控股方', m.coLabel],
+    ['已关联矿权', m.claims? m.claims+' 条' : ''],
+    ['所有者', m.owner],
+    ['运营方', m.operator && m.operator!==m.owner ? m.operator : ''],
+    ['企业市值', m.mcap],
+    ['岩石类型', m.rock],
+    ['S&P 原阶段', m.spStage]
+  ]);
+  if(m.stageWhy){
+    h += '<div class="pp-sub">阶段判定依据</div><div class="why">'+esc(m.stageWhy)+'</div>';
+  }
+
+  var res = [];
+  if(m.tMt!=null) res.push(['矿石量', fmt(m.tMt)+' Mt']);
+  if(m.tCu!=null) res.push(['铜', fmt(m.tCu)+' kt']);
+  if(m.tAu!=null) res.push(['金', fmt(m.tAu)+' koz']);
+  if(m.tAg!=null) res.push(['银', fmt(m.tAg)+' koz']);
+  if(m.tMo!=null) res.push(['钼', fmt(m.tMo)+' kt']);
+  if(m.miMt!=null) res.push(['其中 M+I', fmt(m.miMt)+' Mt']);
+  if(res.length){
+    h += '<div class="pp-sec">资源量 M+II</div>'+ppTable(res);
+  }
+  var rsv = [];
+  if(m.rMt!=null) rsv.push(['矿石量', fmt(m.rMt)+' Mt']);
+  if(m.rCu!=null) rsv.push(['铜', fmt(m.rCu)+' kt']);
+  if(m.rAu!=null) rsv.push(['金', fmt(m.rAu)+' koz']);
+  if(m.rAg!=null) rsv.push(['银', fmt(m.rAg)+' koz']);
+  if(rsv.length||m.grCu!=null||m.grAu!=null){
+    h += '<div class="pp-sec">储量 / 品位</div>';
+    h += ppTable(rsv.concat([
+      ['铜品位', m.grCu!=null? fmt(m.grCu)+' %':''],
+      ['金品位', m.grAu!=null? fmt(m.grAu)+' g/t':''],
+      ['银品位', m.grAg!=null? fmt(m.grAg)+' g/t':''],
+      ['基准日', m.rrDate]
+    ]));
+  }
+
+  if(m.note){
+    h += '<div class="pp-sec">项目状态备注</div><div class="note">'+esc(m.note)+'</div>';
+  }
+  if(m.tech){
+    h += '<div class="pp-sub">技术口径</div><div class="why">'+esc(m.tech)+'</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function popupClaim(c){
+  var col = D.claimStatusColors[c.stGroup]||'#8A949E';
+  var h = '<div class="pp pp-claim">';
+  h += '<div class="pp-h"><h3>'+esc(c.nm||'（无名）')+'</h3></div>';
+  h += '<div class="pp-meta">'+esc(c.prov)+(c.canton?' · '+esc(c.canton):'')+'</div>';
+  h += '<div class="pp-sec first">矿权信息</div>';
+  h += '<div style="margin:0 0 6px"><span class="tag" style="background:'+col+'">'+esc(c.status)+'</span></div>';
+  h += ppTable([
+    ['矿权所有人', c.ow],
+    ['矿种类型', c.kind],
+    ['权利形式', c.form],
+    ['矿业规模', c.size],
+    ['矿权面积', c.area? fmt(c.area)+' 公顷':''],
+    ['首次登记', c.fd],
+    ['最近登记', c.fn]
+  ]);
+  if(c.cg){
+    var chips = c.cg.split('+').map(function(k){
+      return '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;'+
+        'margin-right:5px;vertical-align:1px;background:'+commColor(k)+'"></span>'+esc(k);
+    }).join('<span style="color:#64748B"> · </span>');
+    h += '<div class="pp-sub">关联矿种</div><div class="why">'+chips+'</div>';
+  }
+  h += '<div class="pp-sec">邻近项目</div>';
+  h += '<div class="why">'+esc(c.p.join(' · '))+'</div>';
+  h += '<div class="pp-note">矿权与项目的对应按「矿点落在矿权内，或矿权质心距矿点 ≤'+
+       ' '+D.meta.strongKm+' km」判定，同一矿权可同时归属多个相邻项目。</div>';
+  h += '</div>';
+  return h;
+}
+
+/* ------------------------------------------------------------ render */
+function renderAll(){
+  // 矿点：不匹配的移除，不调暗
+  var shown = 0;
+  markers.forEach(function(mk,i){
+    var hit = mineHits(mines[i]);
+    if(hit){ shown++; if(!map.hasLayer(mk)) mk.addTo(map); }
+    else   { if(map.hasLayer(mk)) map.removeLayer(mk); }
+  });
+  // 矿权：与矿点同一套筛选条件（一个矿权只要有一个关联项目通过，就留下）
+  var cs = 0;
+  for(var i=0;i<claimPolys.length;i++){
+    var p = claimPolys[i], ok = claimHits(p._claim);
+    if(ok){ cs++; if(!map.hasLayer(p)) p.addTo(map); }
+    else  { if(map.hasLayer(p)) map.removeLayer(p); }
+  }
+
+  layoutLabels();
+
+  document.getElementById('kpiShown').textContent = shown;
+  document.getElementById('kpiClaimShown').textContent = cs;
+  document.getElementById('dHint').textContent = '共 '+mines.length+' 个，当前筛选 '+shown+' 个';
+  renderChips();
+  renderTree();
+  renderLegend();
+  renderGrid();
+}
+
+/* ------------------------------------------------------------ sidebar */
+function chipHTML(txt,type,val){
+  return '<span class="chip"><i>'+esc(type)+'</i>'+esc(txt)+
+    '<span class="x" data-ct="'+esc(type)+'" data-cv="'+esc(val)+'">×</span></span>';
+}
+function renderChips(){
+  var h='';
+  if(sel.q) h+=chipHTML('“'+sel.q+'”','搜',sel.q);
+  if(sel.co.length !== D.companies.length)
+    h+='<span class="chip"><i>司</i>已选 '+sel.co.length+' 家'+
+       '<span class="x" data-ct="司" data-cv="__reset">×</span></span>';
+  document.getElementById('chips').innerHTML=h;
+}
+document.getElementById('chips').addEventListener('click',function(e){
+  var x = e.target.closest('.x'); if(!x) return;
+  var t = x.getAttribute('data-ct'), v = x.getAttribute('data-cv');
+  if(t==='期') sel.stage = sel.stage.filter(function(s){return s!==v;});
+  if(t==='类') sel.comm  = sel.comm.filter(function(s){return s!==v;});
+  if(t==='司') sel.co    = (v==='__reset') ? DEFAULT_CO.slice()
+                                           : sel.co.filter(function(s){return s!==v;});
+  if(t==='搜'){ sel.q=''; document.getElementById('q').value=''; }
+  renderAll();
+});
+
+/* 分面计数：数 A 项时忽略 A 这一维自身的勾选，只叠加其余维度。
+ * 否则「只勾了 14 家公司」会把没勾的 21 家全算成 0，用户就没法再加回来。 */
+function countFacet(facet, val){
+  return mines.filter(function(m){
+    return mineHits(m, {
+      stage: facet==='stage' ? [val] : sel.stage,
+      comm:  facet==='comm'  ? [val] : sel.comm,
+      co:    facet==='co'    ? [val] : sel.co
+    });
+  }).length;
+}
+function renderTree(){
+  // 矿种（颜色）
+  var h2='';
+  Object.keys(C).forEach(function(c){
+    var n = countFacet('comm', c);
+    if(!n) return;
+    h2 += '<div class="leaf'+(sel.comm.indexOf(c)>=0?' on':'')+'" data-t="类" data-v="'+c+'">'+
+      '<div class="box"></div>'+
+      '<span class="sw" style="background:'+C[c]+'"></span>'+
+      '<span class="lbl">'+esc(c)+'</span><span class="n">'+n+'</span></div>';
+  });
+  if(!h2) h2 = '<div class="leaf" style="color:#64748B">无匹配</div>';
+  document.getElementById('treeComm').innerHTML=h2;
+
+  // 阶段（形状）
+  var h='';
+  D.stageOrder.forEach(function(s){
+    var n = countFacet('stage', s);
+    if(!n) return;
+    var on = sel.stage.indexOf(s)>=0;
+    h += '<div class="leaf'+(on?' on':'')+'" data-t="期" data-v="'+s+'">'+
+      '<div class="box"></div>'+
+      '<span class="sh">'+shapeSVG(stageShape(s),'#94A3B8',12)+'</span>'+
+      '<span class="lbl">'+esc(D.stageCn[s])+'</span><span class="n">'+n+'</span></div>';
+  });
+  if(!h) h = '<div class="leaf" style="color:#64748B">无匹配</div>';
+  document.getElementById('treeStage').innerHTML=h;
+
+  // 控股方
+  // 顺序固定为构建期排好的「中文在前、英文在后，各自按首字母」，
+  // 不按数量重排 —— 一按数量排，勾选一变列表就跳，没法连续勾选。
+  var h3='';
+  D.companies.forEach(function(co){
+    var n = countFacet('co', co.k);
+    var on = sel.co.indexOf(co.k)>=0;
+    // 已勾选但当前 0 项（比如它唯一的项目是停产）不算「空」—— 置灰会让人以为选不上
+    h3 += '<div class="leaf'+(on?' on':'')+((n||on)?'':' zero')+'" data-t="司" data-v="'+co.k+'">'+
+      '<div class="box"></div><span class="lbl">'+esc(co.n)+'</span>'+
+      '<span class="n">'+n+'</span></div>';
+  });
+  document.getElementById('treeCo').innerHTML=h3;
+  document.getElementById('coCount').textContent = '已选 '+sel.co.length+' / '+D.companies.length;
+}
+
+document.querySelector('nav').addEventListener('click',function(e){
+  // chips 也在 nav 里，且同样带 data-t —— 不挡住的话点芯片的 × 会被这里再处理一遍，
+  // 把 '__reset' 当成公司键塞进 sel.co
+  if(e.target.closest('#chips')) return;
+  var b = e.target.closest('[data-b]');
+  if(b){ setBase(b.getAttribute('data-b')); return; }
+  var ov = e.target.closest('[data-ovl]');
+  if(ov){ setGeoOverlay(ov.getAttribute('data-ovl')); return; }
+  var row = e.target.closest('[data-t]');
+  if(!row) return;
+  var t = row.getAttribute('data-t'), v = row.getAttribute('data-v');
+  function toggle(arr,x){var i=arr.indexOf(x); if(i<0)arr.push(x); else arr.splice(i,1); return arr;}
+  if(t==='期') toggle(sel.stage,v);
+  if(t==='类') toggle(sel.comm,v);
+  if(t==='司') toggle(sel.co,v);
+  renderAll();
+});
+
+var qt;
+document.getElementById('q').addEventListener('input',function(e){
+  clearTimeout(qt);
+  var v = e.target.value.trim().toLowerCase();
+  qt = setTimeout(function(){ sel.q=v; renderAll(); },180);
+});
+document.getElementById('reset').addEventListener('click',function(){
+  sel.stage = DEFAULT_STAGE.slice(); sel.comm = DEFAULT_COMM.slice();
+  sel.co = DEFAULT_CO.slice(); sel.q='';
+  document.getElementById('q').value='';
+  renderAll();
+});
+
+/* ------------------------------------------------------------ legend */
+function renderLegend(){
+  var h = '';
+  if(geoMode()){
+    var isA = geoOverlay==='A';
+    h += '<div class="lg-blk"><div class="lg-t">' +
+         (isA ? '地质底图 · CGMW 1:5M' : '地质底图 · 1982 DGGM 1:1M') + '</div>';
+    if(isA){
+      [['火山岩','Volcanic'],['沉积岩','Sedimentary'],
+       ['侵入岩','Plutonic'],['变质岩','Metamorphic']].forEach(function(x){
+        h += '<div class="lg-row"><span class="sw" style="background:'+ROCK_C[x[1]]+
+             '"></span>'+x[0]+'</div>';
+      });
+      h += '<div class="lg-row" style="font-size:10.3px;color:#7A7A7A;line-height:1.5">' +
+           '最小图斑约 13 km 宽，仅适合国家级视野</div>';
+    } else {
+      h += '<div class="lg-row" style="font-size:10.3px;color:#7A7A7A;line-height:1.55">' +
+           '扫描件原图配色，未重新编码<br>按 multiply 叠在底图上，白纸处透出地形</div>';
+    }
+    h += '<div class="lg-row" style="font-size:10.3px;color:#7A7A7A;line-height:1.55">' +
+         '断层：逆冲 / 走滑 / 正断（虚线）<br>火山：近百年（实心红）/ 更早（空心）</div>';
+    h += '</div>';
+  }
+
+  // 色 = 矿种
+  var cc={};
+  mines.forEach(function(m){ cc[m.commodity]=(cc[m.commodity]||0)+1; });
+  h += '<div class="lg-blk"><div class="lg-t">矿种 · 颜色</div>';
+  Object.keys(C).filter(function(k){return cc[k];}).forEach(function(k){
+    h += '<div class="lg-row"><span class="sw" style="background:'+C[k]+'"></span>'+
+      esc(k)+'<span class="n">'+cc[k]+'</span></div>';
+  });
+  h += '</div>';
+
+  // 形状 = 阶段
+  var sc={};
+  mines.forEach(function(m){ sc[m.stage]=(sc[m.stage]||0)+1; });
+  h += '<div class="lg-blk"><div class="lg-t">阶段 · 形状</div>';
+  D.stageOrder.forEach(function(s){
+    if(!sc[s]) return;
+    h += '<div class="lg-row"><span class="lg-s">'+shapeSVG(stageShape(s),'#94A3B8',12)+'</span>'+
+      esc(D.stageCn[s])+'<span class="n">'+sc[s]+'</span></div>';
+  });
+  h += '</div>';
+
+  // 矿权：线型 = 状态
+  var gs={};
+  claims.forEach(function(c){ gs[c.stGroup]=(gs[c.stGroup]||0)+1; });
+  h += '<div class="lg-blk"><div class="lg-t">矿权 · 线型</div>';
+  D.claimGroupOrder.forEach(function(g){
+    if(!gs[g]) return;
+    h += '<div class="lg-row">'+dashSVG(D.claimStatusColors[g], D.claimDash[g])+
+      esc(D.claimGroupCn[g])+'<span class="n">'+gs[g]+'</span></div>';
+  });
+  h += '</div>';
+  document.getElementById('legend').innerHTML = h;
+}
+
+/* ------------------------------------------------------------ detail tab */
+var sortKey=null, sortDir=-1, dq='';
+// 默认排序：金在前、铜在后；同矿种内按 M+II 矿石量倒序
+var COMM_RANK = {Gold:0, Copper:1};
+var COLS = D.cols;
+var TOTAL_W = COLS.reduce(function(s,c){return s+(c.w||100);},0);
+
+function renderGrid(){
+  var head = '<colgroup>';
+  COLS.forEach(function(c){ head += '<col style="width:'+(c.w||100)+'px" />'; });
+  head += '</colgroup><thead><tr class="g">';
+  // 按「相邻同组」数格子，不能按组名汇总 —— 组名重复出现时汇总值会覆盖前一段
+  var runs=[];
+  COLS.forEach(function(c){
+    var last = runs[runs.length-1];
+    if(last && last.g===c.group) last.n++; else runs.push({g:c.group, n:1});
+  });
+  runs.forEach(function(r){ head += '<th colspan="'+r.n+'">'+esc(r.g)+'</th>'; });
+  head += '</tr><tr>';
+  COLS.forEach(function(c){
+    var ar = sortKey===c.key ? '<span class="sort-ar">'+(sortDir>0?'▲':'▼')+'</span>' : '';
+    head += '<th data-k="'+c.key+'">'+esc(c.label)+
+      (c.unit?' <span class="u">'+esc(c.unit)+'</span>':'')+ar+'</th>';
+  });
+  head += '</tr></thead>';
+
+  var list = mines.map(function(m,i){return {m:m,i:i};});
+  list = list.filter(function(o){return mineHits(o.m);});
+  if(dq){
+    var q=dq.toLowerCase();
+    list = list.filter(function(o){
+      var m=o.m;
+      return (m.name+' '+m.coLabel+' '+m.owner+' '+m.operator+' '+m.province+' '+m.detail+' '+m.note)
+        .toLowerCase().indexOf(q)>=0;
+    });
+  }
+  if(sortKey){
+    list.sort(function(a,b){
+      var x=a.m[sortKey], y=b.m[sortKey];
+      if(x==null&&y==null) return 0;
+      if(x==null) return 1; if(y==null) return -1;
+      if(typeof x==='number'&&typeof y==='number') return (x-y)*sortDir;
+      return String(x).localeCompare(String(y),'zh')*sortDir;
+    });
+  } else {
+    // 默认序：矿种（金→铜→其余）+ 矿石量倒序。没有矿石量的排在所在矿种末尾。
+    list.sort(function(a,b){
+      var ra = COMM_RANK[a.m.commodity], rb = COMM_RANK[b.m.commodity];
+      ra = ra==null?9:ra; rb = rb==null?9:rb;
+      if(ra!==rb) return ra-rb;
+      var x=a.m.tMt, y=b.m.tMt;
+      if(x==null&&y==null) return 0;
+      if(x==null) return 1;
+      if(y==null) return -1;
+      return y-x;
+    });
+  }
+
+  var body='<tbody>';
+  list.forEach(function(o){
+    var m=o.m;
+    body += '<tr>';
+    COLS.forEach(function(c){
+      var v = m[c.key];
+      if(c.key==='idx'){ body+='<td class="n">'+(o.i+1)+'</td>'; return; }
+      if(c.key==='name'){
+        body += '<td class="name"><span style="display:inline-block;vertical-align:-2px;'+
+                'margin-right:6px">'+shapeSVG(stageShape(m.stage), commColor(m.commodity), 11)+
+                '</span>'+esc(m.name)+'</td>'; return;
+      }
+      if(c.key==='commodity'){
+        body += '<td><span class="dot" style="display:inline-block;width:7px;height:7px;'+
+                'border-radius:2px;margin-right:5px;background:'+commColor(m.commodity)+
+                '"></span>'+esc(m.commodity)+'</td>'; return;
+      }
+      if(c.type==='num'){ body += '<td class="n">'+fmt(v)+'</td>'; return; }
+      if(c.key==='note'||c.key==='stageWhy'){
+        body += '<td class="long">'+esc(v||'—')+'</td>'; return;
+      }
+      if(c.key==='detail'||c.key==='owner'||c.key==='coLabel'||c.key==='mcap'){
+        body += '<td class="wrap">'+esc(v||'—')+'</td>'; return;
+      }
+      body += '<td>'+esc(v||'—')+'</td>';
+    });
+    body += '</tr>';
+  });
+  body += '</tbody>';
+
+  var g = document.getElementById('grid');
+  g.style.width = TOTAL_W+'px';
+  g.innerHTML = head+body;
+  document.getElementById('dReset').classList.toggle('on', !!sortKey);
+
+  document.getElementById('foot').innerHTML =
+    '<b>口径</b><ol>'+FOOTNOTES.map(function(f){
+      return '<li>'+esc(f.replace(/^口径说明：$/,''))+'</li>';}).join('')+'</ol>';
+}
+
+document.getElementById('dq').addEventListener('input',function(e){
+  dq = e.target.value.trim(); renderGrid();
+});
+document.getElementById('dReset').addEventListener('click',function(){
+  sortKey = null; renderGrid();
+});
+document.getElementById('grid').addEventListener('click',function(e){
+  var th = e.target.closest('th[data-k]'); if(!th) return;
+  var k = th.getAttribute('data-k');
+  if(sortKey===k) sortDir = -sortDir; else {sortKey=k; sortDir=1;}
+  renderGrid();
+});
+
+/* ------------------------------------------------------------ tabs */
+document.getElementById('tab-map').addEventListener('click',function(){
+  document.getElementById('tab-map').classList.add('on');
+  document.getElementById('tab-detail').classList.remove('on');
+  document.getElementById('detail').classList.remove('on');
+  map.invalidateSize();
+});
+document.getElementById('tab-detail').addEventListener('click',function(){
+  document.getElementById('tab-detail').classList.add('on');
+  document.getElementById('tab-map').classList.remove('on');
+  document.getElementById('detail').classList.add('on');
+  renderGrid();
+});
+
+/* ------------------------------------------------------------ boot */
+document.getElementById('subtitle').textContent = D.meta.subtitle;
+document.getElementById('kpiMines').textContent = mines.length;
+document.getElementById('kpiClaims').textContent = claims.length;
+initMap();
+renderGrid();
+
+window.__map = map;          // 供自动校验取用
+window.__sel = sel;
+window.__claimPolys = claimPolys;
+})();
+</script>
+</body>
+</html>
