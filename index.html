@@ -9,7 +9,7 @@
      字体与 ESRI 底图仍走在线，那两者实测可达。 -->
 <link rel="stylesheet" href="lib/leaflet.css" />
 <script src="data.js?v=1793781082"></script>
-<script src="geo.js?v=1793840558"></script>
+<script src="geo.js?v=1793859600"></script>
 <script src="lib/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -560,8 +560,8 @@ function buildGeoA(){
   var G = window.GEO_DATA;
   geoA = L.layerGroup();
   G.units.forEach(function(u){
-    L.polygon(u.r, {renderer:provRenderer, color:'#6E6070', weight:0.5, opacity:.5,
-      fillColor:ROCK_C[u.t]||'#C3AE7C', fillOpacity:.55,
+    L.polygon(u.r, {renderer:provRenderer, color:'#6E6070', weight:0.55, opacity:.55,
+      fillColor:ROCK_C[u.t]||'#C3AE7C', fillOpacity:.68,
       interactive:false}).addTo(geoA);
   });
   return geoA;
@@ -570,7 +570,7 @@ function buildGeoB(){
   if(geoB) return geoB;
   var G = window.GEO_DATA;
   geoB = L.layerGroup();
-  L.imageOverlay('geo_scan.jpg', G.scanBounds,
+  L.imageOverlay('geo_scan.jpg?v=1793859588', G.scanBounds,
     {pane:'geoTilePane', opacity:1, interactive:false}).addTo(geoB);
   return geoB;
 }
