@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="robots" content="noindex, nofollow, noarchive">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>厄瓜多尔铜金项目 · 矿点与矿权</title>
@@ -9,12 +8,12 @@
      会 ERR_CONNECTION_TIMED_OUT，CDN 挂了整张地图就是白屏。
      字体与 ESRI 底图仍走在线，那两者实测可达。 -->
 <link rel="stylesheet" href="lib/leaflet.css" />
-<script src="data.js?v=1793781082"></script>
+<script src="data.js?v=1793866145"></script>
 <script src="geo.js?v=1793859600"></script>
 <script src="lib/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
 /* 洛阳钼业品牌色板（2026-10-14 从 cmoc.com 样式表实测）：
    主色紫 #4C3B8C / 深阶 #3A2C6B / 浅底 #EBE7F3，辅色绿 #6FBA2C，
@@ -27,7 +26,7 @@
   --accent-dim:#EBE7F3; --green:#6FBA2C; --green-deep:#4E8A1A;
   --header-h:52px; --sidebar-w:292px;
   --sans:'Inter','Noto Sans SC',system-ui,sans-serif;
-  --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+  --mono:Consolas,'SF Mono','Menlo','DejaVu Sans Mono',monospace;
   --shadow:0 6px 22px rgba(76,59,140,.12);
 }
 *{box-sizing:border-box}
@@ -571,7 +570,7 @@ function buildGeoB(){
   if(geoB) return geoB;
   var G = window.GEO_DATA;
   geoB = L.layerGroup();
-  L.imageOverlay('geo_scan.jpg?v=1793859588', G.scanBounds,
+  L.imageOverlay('geo_scan.jpg?v=1793865565', G.scanBounds,
     {pane:'geoTilePane', opacity:1, interactive:false}).addTo(geoB);
   return geoB;
 }
