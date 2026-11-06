@@ -8,7 +8,7 @@
      会 ERR_CONNECTION_TIMED_OUT，CDN 挂了整张地图就是白屏。
      字体与 ESRI 底图仍走在线，那两者实测可达。 -->
 <link rel="stylesheet" href="lib/leaflet.css" />
-<script src="data.js?v=1793936536"></script>
+<script src="data.js?v=1793943269"></script>
 <script src="geo.js?v=1793859600"></script>
 <script src="lib/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -996,6 +996,20 @@ function popupMine(m){
   return h;
 }
 
+/* 地籍三个日期都是 dd/mm/yyyy，比较大小要转成 yyyymmdd */
+function claimDateVal(s){
+  var m = String(s||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? (+m[3])*10000 + (+m[2])*100 + (+m[1]) : 0;
+}
+function claimLatestDate(){
+  var best = '', bv = 0;
+  for(var i=0;i<arguments.length;i++){
+    var v = claimDateVal(arguments[i]);
+    if(v > bv){ bv = v; best = arguments[i]; }
+  }
+  return best;
+}
+
 function popupClaim(c){
   var col = D.claimStatusColors[c.stGroup]||'#8A949E';
   var h = '<div class="pp pp-claim">';
@@ -1008,10 +1022,13 @@ function popupClaim(c){
     ['矿种类型', c.kind],
     ['权利形式', c.form],
     ['矿业规模', c.size],
-    ['矿权面积', c.area? fmt(c.area)+' 公顷':''],
-    ['首次登记', c.fd],
-    ['最近登记', c.fn]
+    ['矿权面积', c.area? fmt(c.area)+' 公顷':'']
   ]);
+  var dRows = [['授予日', c.fd], ['登记日', c.fn]];
+  if(c.fi) dRows.push(['Fei 日期', c.fi]);
+  var late = claimLatestDate(c.fd, c.fi, c.fn);
+  if(late && late !== c.fn) dRows.push(['记录最新日期', late]);
+  h += ppTable(dRows);
   if(c.cg){
     var chips = c.cg.split('+').map(function(k){
       return '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;'+
@@ -1021,6 +1038,7 @@ function popupClaim(c){
   }
   h += '<div class="pp-sec">邻近项目</div>';
   h += '<div class="why">'+esc(c.p.join(' · '))+'</div>';
+  h += '<div class="pp-note">地籍基准：ARCOM 2021-07 版（全国 14,474 宗）。厄瓜多尔国家矿业地籍 2018-01 冻结至 2025-06-28，期间未新设矿权；本层不含 2025-07 之后新登记或变更的记录。Fei 为地籍第三个日期字段、ARCOM 未公开口径，实测 89% 早于登记日、11% 晚于登记日，故与另两个日期并列，并取三者最晚值作「记录最新日期」。</div>';
   h += '<div class="pp-note">矿权与项目的对应按「矿点落在矿权内，或矿权质心距矿点 ≤'+
        ' '+D.meta.strongKm+' km」判定，同一矿权可同时归属多个相邻项目。</div>';
   h += '</div>';
@@ -1221,6 +1239,8 @@ function renderLegend(){
     h += '<div class="lg-row">'+dashSVG(D.claimStatusColors[g], D.claimDash[g])+
       esc(D.claimGroupCn[g])+'<span class="n">'+gs[g]+'</span></div>';
   });
+  h += '<div class="lg-row" style="font-size:10.3px;color:#7A7A7A;line-height:1.55">'+
+       '地籍基准 2021-07（全国 14,474 宗）。2018-01～2025-06 地籍冻结，期间无新设矿权</div>';
   h += '</div>';
   document.getElementById('legend').innerHTML = h;
 }
