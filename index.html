@@ -8,7 +8,7 @@
      会 ERR_CONNECTION_TIMED_OUT，CDN 挂了整张地图就是白屏。
      字体与 ESRI 底图仍走在线，那两者实测可达。 -->
 <link rel="stylesheet" href="lib/leaflet.css" />
-<script src="data.js?v=1793945617"></script>
+<script src="data.js?v=1793946583"></script>
 <script src="geo.js?v=1793859600"></script>
 <script src="lib/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -356,7 +356,7 @@ var D = window.DASHBOARD_DATA;
 
 var mines = D.mines, claims = D.claims, provinces = D.provinces || [];
 var C = D.colors, N = '#8a949e';
-var FOOTNOTES = ["口径说明：", "1. 储量 = Proven + Probable；M+I = Measured + Indicated；M+II = Measured + Indicated + Inferred（全部资源量）。三者是包含关系，不可相加。", "2. M+II 优先取技术报告 Total Resources 行；S&P 的「资源量」字段为 Total Resources Excl Reserves（不含储量），已单独换算，未与储量相加。", "3. 品位：有储量者取储量表品位；无储量者由 M+II 含金属量 ÷ 矿石量反算，仅作量级参考。", "4. 企业市值取 2026-11-02 收盘，A 股/港股用东方财富总市值，加/澳/美用 stockanalysis.com；汇率 USD/CNY 6.6483、USD/HKD 7.8461、USD/CAD 1.3974、USD/AUD 1.4269。市值不乘项目权益。", "5. 「详细阶段」已按技术报告与公开信息修正，「S&P 原始阶段」保留原值；两者不一致的即 S&P 高估（详见 盘点说明与关键发现.md 第四节）。", "6. 「阶段」为五档概况，用于筛选：生产（在产）3 个、开发（FS 完成且项目在推进）2 个、可研（PEA/PFS 完成或 FS 在途）6 个、勘探（高级勘探/绿地，从未有正式经济研究）19 个、停产（曾产或研究后中止）17 个。", "7. 阶段判定规则：标签只描述**已经完成的事实**，「FS 完成」须有已发布/已提交的 FS 报告；研究在途、FID 未定、许可未批等状态写在「阶段判定依据」，不并入标签。标注「PFS 完成，FS 在途」者指 FS 已启动但报告尚未发布。括号内为该项的当前处境（停工、许可被撤、被法院中止、二期未获批），不改变阶段本身。", "8. 「项目状态备注」写项目当前状态、定性与前瞻，「技术口径备注」记资源量口径的疑点与变更，「阶段判定依据」记阶段标签的取证来源，三者不重复。", "9. 空值 = 未取到，不估算。El Guayabo 的 570 Mt / 6.588 Moz Au 为 100% 基础，Challenger 实际归属 431 Mt（Colorado V 仅 50%）。", "10. 数据来源：S&P Global 2026-11-01 导出 + 各项目技术报告/公司财报/官网，逐项见各项目目录 _报告清单.md。"];
+var FOOTNOTES = ["口径说明：", "1. 储量 = Proven + Probable；M+I = Measured + Indicated；M+II = Measured + Indicated + Inferred（全部资源量）。三者是包含关系，不可相加。", "2. M+II 优先取技术报告 Total Resources 行；S&P 的「资源量」字段为 Total Resources Excl Reserves（不含储量），已单独换算，未与储量相加。", "3. 品位：有储量者取储量表品位；无储量者由 M+II 含金属量 ÷ 矿石量反算，仅作量级参考。", "4. 企业市值取 2026-11-02 收盘，A 股/港股用东方财富总市值，加/澳/美用 stockanalysis.com；汇率 USD/CNY 6.6483、USD/HKD 7.8461、USD/CAD 1.3974、USD/AUD 1.4269。市值不乘项目权益。", "5. 「详细阶段」已按技术报告与公开信息修正，「S&P 原始阶段」保留原值；两者不一致的即 S&P 高估（详见 盘点说明与关键发现.md 第四节）。", "6. 「阶段」为五档概况，用于筛选：生产（在产）3 个、开发（FS 完成且项目在推进）2 个、可研（PEA/PFS 完成或 FS 在途）6 个、勘探（绿地或仅有资源量、从未有正式经济研究）19 个、停产（曾产或研究后中止）17 个。", "7. 阶段判定规则：标签只描述**已经完成的事实**，「FS 完成」须有已发布/已提交的 FS 报告；研究在途、FID 未定、许可未批等状态写在「阶段判定依据」，不并入标签。标注「PFS 完成，FS 在途」者指 FS 已启动但报告尚未发布。括号内为该项的当前处境（停工、许可被撤、被法院中止、二期未获批），不改变阶段本身。", "8. 「项目状态备注」写项目当前状态、定性与前瞻，「技术口径备注」记资源量口径的疑点与变更，「阶段判定依据」记阶段标签的取证来源，三者不重复。", "9. 空值 = 未取到，不估算。El Guayabo 的 570 Mt / 6.588 Moz Au 为 100% 基础，Challenger 实际归属 431 Mt（Colorado V 仅 50%）。", "10. 数据来源：S&P Global 2026-11-01 导出 + 各项目技术报告/公司财报/官网，逐项见各项目目录 _报告清单.md。"];
 
 /* ------------------------------------------------------------ helpers */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -1094,9 +1094,25 @@ function chipHTML(txt,type,val){
   return '<span class="chip"><i>'+esc(type)+'</i>'+esc(txt)+
     '<span class="x" data-ct="'+esc(type)+'" data-cv="'+esc(val)+'">×</span></span>';
 }
+function allStages(){ return D.stageOrder.filter(function(s){return PRESENT_ST[s];}); }
+function allComms(){ return Object.keys(C).filter(function(k){return PRESENT_CM[k];}); }
+
 function renderChips(){
   var h='';
   if(sel.q) h+=chipHTML('“'+sel.q+'”','搜',sel.q);
+
+  var missSt = allStages().filter(function(s){return sel.stage.indexOf(s)<0;});
+  if(missSt.length){
+    h+='<span class="chip"><i>阶段</i>未含 '+
+       missSt.map(function(s){return esc(D.stageCn[s]||s);}).join('、')+
+       '<span class="x" data-ct="阶" data-cv="__reset">×</span></span>';
+  }
+  var missCm = allComms().filter(function(k){return sel.comm.indexOf(k)<0;});
+  if(missCm.length){
+    h+='<span class="chip"><i>矿种</i>未含 '+missCm.map(esc).join('、')+
+       '<span class="x" data-ct="种" data-cv="__reset">×</span></span>';
+  }
+
   if(sel.co.length !== D.companies.length)
     h+='<span class="chip"><i>司</i>已选 '+sel.co.length+' 家'+
        '<span class="x" data-ct="司" data-cv="__reset">×</span></span>';
@@ -1109,6 +1125,8 @@ document.getElementById('chips').addEventListener('click',function(e){
   if(t==='类') sel.comm  = sel.comm.filter(function(s){return s!==v;});
   if(t==='司') sel.co    = (v==='__reset') ? DEFAULT_CO.slice()
                                            : sel.co.filter(function(s){return s!==v;});
+  if(t==='阶') sel.stage = (v==='__reset') ? allStages() : sel.stage.filter(function(s){return s!==v;});
+  if(t==='种') sel.comm  = (v==='__reset') ? allComms()  : sel.comm.filter(function(s){return s!==v;});
   if(t==='搜'){ sel.q=''; document.getElementById('q').value=''; }
   renderAll();
 });
