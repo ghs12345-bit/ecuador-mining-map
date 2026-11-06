@@ -8,7 +8,7 @@
      会 ERR_CONNECTION_TIMED_OUT，CDN 挂了整张地图就是白屏。
      字体与 ESRI 底图仍走在线，那两者实测可达。 -->
 <link rel="stylesheet" href="lib/leaflet.css" />
-<script src="data.js?v=1793933711"></script>
+<script src="data.js?v=1793936536"></script>
 <script src="geo.js?v=1793859600"></script>
 <script src="lib/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -501,6 +501,7 @@ function initMap(){
     restyleClaims(z);
     applyZoomVisibility(z);
     layoutLabels();
+    layoutSubLabels();
     syncProvLabels();
   });
   renderAll();
@@ -718,8 +719,10 @@ function buildSubMarkers(){
       subLayer.addLayer(mk);
       var lic = L.divIcon({className:'mlbl-wrap',
         html:'<span class="slbl">'+esc(x.name)+'</span>', iconSize:null, iconAnchor:[0,0]});
-      subLabels.push(L.marker([x.lat,x.lng],
-        {icon:lic, interactive:false, keyboard:false, zIndexOffset:-10}));
+      var lbm = L.marker([x.lat,x.lng],
+        {icon:lic, interactive:false, keyboard:false, zIndexOffset:-10});
+      lbm._sub = x;
+      subLabels.push(lbm);
     });
   });
   return subLayer;
@@ -778,6 +781,72 @@ function labelBox(x, y, w, h, side){
 }
 function boxHit(a,b){
   return !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y);
+}
+
+/* 子矿床标签排版：14 个点里 Condor 四个相距不到 2 km，z12 会糊成一团。
+ * 规则同矿名标签——按矿石量大小依次占位，被压住的先藏起来，放大后自然重现。
+ * 父项目标签和所有子矿床点本身都算障碍。 */
+function layoutSubLabels(){
+  if(!subLabels.length) return;
+  var cw = map.getSize().x, ch = map.getSize().y;
+  var items = [];
+  subLabels.forEach(function(lb){
+    if(!map.hasLayer(lb)) return;
+    var el = lb.getElement();
+    if(!el || !el.firstChild) return;
+    var sp = el.firstChild;
+    sp.style.display = '';
+    var p = map.latLngToContainerPoint(lb.getLatLng());
+    items.push({lb:lb, s:lb._sub, x:p.x, y:p.y,
+                w:sp.offsetWidth || 40, h:sp.offsetHeight || 12});
+  });
+  if(!items.length) return;
+  items.sort(function(a,b){
+    var x=a.s.tMt, y=b.s.tMt;
+    if(x==null && y==null) return 0;
+    if(x==null) return 1;
+    if(y==null) return -1;
+    return y-x;
+  });
+  var boxes = [];
+  // 父项目标签先占位（只算真正显示出来的）
+  labels.forEach(function(lb){
+    if(!map.hasLayer(lb)) return;
+    var el = lb.getElement();
+    if(!el || !el.firstChild || el.firstChild.style.display === 'none') return;
+    var r = el.getBoundingClientRect();
+    if(r.width < 2) return;
+    boxes.push({x:r.left, y:r.top, w:r.width, h:r.height});
+  });
+  var dots = items.map(function(it){
+    var el = it.lb.getElement();
+    var r = el.getBoundingClientRect();
+    return {x:r.left-5, y:r.top-5, w:10, h:10, it:it};
+  });
+  // 父项目标记也算障碍：Condor 的四个矿床正好压在 Chinapintza 项目点上
+  markers.forEach(function(mk){
+    if(!map.hasLayer(mk)) return;
+    var el = mk.getElement();
+    if(!el) return;
+    var r = el.getBoundingClientRect();
+    if(r.width < 2) return;
+    dots.push({x:r.left, y:r.top, w:r.width, h:r.height, it:null});
+  });
+  items.forEach(function(it){
+    var el = it.lb.getElement();
+    var r = el.firstChild.getBoundingClientRect();
+    var bx = {x:r.left, y:r.top, w:r.width || it.w, h:r.height || it.h};
+    var bad = false;
+    for(var j=0;j<boxes.length;j++){ if(boxHit(bx, boxes[j])){ bad = true; break; } }
+    if(!bad){
+      for(var d=0;d<dots.length;d++){
+        if(dots[d].it === it) continue;
+        if(boxHit(bx, dots[d])){ bad = true; break; }
+      }
+    }
+    if(bad){ it.lb.getElement().firstChild.style.display = 'none'; }
+    else   { boxes.push(bx); }
+  });
 }
 
 function layoutLabels(){
@@ -971,6 +1040,7 @@ function renderAll(){
 
   applyZoomVisibility(map.getZoom());
   layoutLabels();
+  layoutSubLabels();
 
   document.getElementById('kpiShown').textContent = shown;
   document.getElementById('kpiClaimShown').textContent = cs;
