@@ -8,7 +8,7 @@
      会 ERR_CONNECTION_TIMED_OUT，CDN 挂了整张地图就是白屏。
      字体与 ESRI 底图仍走在线，那两者实测可达。 -->
 <link rel="stylesheet" href="lib/leaflet.css" />
-<script src="data.js?v=1793878185"></script>
+<script src="data.js?v=1793933711"></script>
 <script src="geo.js?v=1793859600"></script>
 <script src="lib/leaflet.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -148,6 +148,9 @@ nav::-webkit-scrollbar-thumb{background:rgba(76,59,140,.22);border-radius:4px}
 .mlbl{position:absolute;left:0;top:0;font-size:10px;font-weight:600;letter-spacing:.01em;
   color:#2A2438;white-space:nowrap;pointer-events:none;
   text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 4px #fff,0 1px 0 #fff}
+.slbl{position:absolute;left:0;top:0;font-size:9px;font-weight:500;letter-spacing:0;
+  color:#4A3F5C;white-space:nowrap;pointer-events:none;transform:translate(7px,-50%);
+  text-shadow:0 0 3px #fff,0 0 3px #fff,0 1px 0 #fff}
 .mlbl.side-r {transform:translate(9px,-50%)}
 .mlbl.side-l {transform:translate(calc(-100% - 9px),-50%)}
 .mlbl.side-t {transform:translate(-50%,calc(-100% - 9px))}
@@ -382,11 +385,12 @@ var SHAPES = {
   triangle: {d:'M6,1.5 L10.6,10.4 H1.4 Z'},
   cross:    {s:'M3.3,3.3 L8.7,8.7 M8.7,3.3 L3.3,8.7'}
 };
-function shapeSVG(sh,color,sz){
+function shapeSVG(sh,color,sz,hollow){
   sz = sz||14;
   var g = SHAPES[sh]||SHAPES.circle;
   var inner = g.d
-    ? '<path d="'+g.d+'" fill="'+color+'" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>'
+    ? '<path d="'+g.d+'" fill="'+(hollow?'#fff':color)+'" stroke="'+(hollow?color:'#fff')+
+      '" stroke-width="'+(hollow?2:1.5)+'" stroke-linejoin="round"/>'
     : '<path d="'+g.s+'" fill="none" stroke="#fff" stroke-width="4.8" stroke-linecap="round"/>'+
       '<path d="'+g.s+'" fill="none" stroke="'+color+'" stroke-width="2.4" stroke-linecap="round"/>';
   return '<svg class="mine-shape" width="'+sz+'" height="'+sz+'" viewBox="0 0 12 12">'+inner+'</svg>';
@@ -422,6 +426,8 @@ var sel = {stage:DEFAULT_STAGE.slice(), comm:DEFAULT_COMM.slice(),
 var markers = [];          // 按 mines 下标键控，绝不按名称（S&P 名称不唯一）
 var labels = [];           // 矿名标签，与 markers 同下标、同（抖动后）坐标
 var claimPolys = [];       // 全量矿权，过滤靠 add/remove，不从数组里删
+var subLayer = null;       // 子矿床点层，zoom>=11 才加入地图
+var subLabels = [];        // 子矿床标签，zoom>=12 才加入地图
 var map, provLayer, provLbls;
 
 var nameIdx = {};
@@ -493,6 +499,7 @@ function initMap(){
     if(z===lastZ) return;
     lastZ = z;
     restyleClaims(z);
+    applyZoomVisibility(z);
     layoutLabels();
     syncProvLabels();
   });
@@ -627,10 +634,16 @@ function claimStyle(c, z){
   // 线宽按底图明暗微调：卫星上要粗一点才压得住影像纹理
   if(baseKey==='sat') w += .3;
   var gm = geoMode();
+  var own = !!c.own;
+  // 自有矿权：始终醒目；周边矿权：z<9 淡出成背景纹理
+  if(own){ w = z>=13?2.4 : z>=11?2.0 : z>=9?1.6 : 1.4; }
+  else if(z < 9){ w = 1.0; }
+  var op = own ? .9 : (gm ? .5 : (z>=9 ? .85 : .35));
+  var fo = own ? .10 : (gm ? .02 : (z>=9 ? (g==='granted' ? .12 : .05) : .02));
   return {
-    color:col, weight: gm ? w*0.7 : w, opacity: gm ? .5 : (z>=9? .85 : .8),
+    color:col, weight: (gm && !own) ? w*0.7 : w, opacity: op,
     dashArray: (z>=9 && dash) ? dash : null,
-    fillColor:col, fillOpacity: gm ? .02 : (g==='granted' ? .12 : .05),
+    fillColor:col, fillOpacity: fo,
     interactive:true
   };
 }
@@ -683,6 +696,65 @@ function buildMarkers(){
     labels.push(L.marker([pos[i].lat,pos[i].lng],
       {icon:lic, interactive:false, keyboard:false, zIndexOffset:-10}));
   });
+}
+
+/* ------------------------------------------------------------ 子矿床
+ * 只在 zoom>=11 出现。14 个子矿床里 4 个有地籍质心坐标（El Guayabo），
+ * 其余 10 个报告未给坐标，不撒点、只在父点弹窗里列资源量。
+ */
+function buildSubMarkers(){
+  if(subLayer) return subLayer;
+  subLayer = L.layerGroup();
+  mines.forEach(function(m){
+    (m.subs||[]).forEach(function(x){
+      if(x.lat==null || x.lng==null) return;
+      var icon = L.divIcon({
+        className:'mine-dot-wrap',
+        html: shapeSVG(stageShape(m.stage), commColor(m.commodity), 9, true),
+        iconSize:[9,9], iconAnchor:[4.5,4.5], popupAnchor:[0,-6]
+      });
+      var mk = L.marker([x.lat,x.lng],{icon:icon,riseOnHover:true});
+      mk.bindPopup(popupSub(x,m),{maxWidth:330,minWidth:290,autoPanPadding:[24,74]});
+      subLayer.addLayer(mk);
+      var lic = L.divIcon({className:'mlbl-wrap',
+        html:'<span class="slbl">'+esc(x.name)+'</span>', iconSize:null, iconAnchor:[0,0]});
+      subLabels.push(L.marker([x.lat,x.lng],
+        {icon:lic, interactive:false, keyboard:false, zIndexOffset:-10}));
+    });
+  });
+  return subLayer;
+}
+function applyZoomVisibility(z){
+  var sl = buildSubMarkers();
+  var on = z >= 11;
+  if(on){ if(!map.hasLayer(sl)) sl.addTo(map); }
+  else  { if(map.hasLayer(sl)) map.removeLayer(sl); }
+  var lon = z >= 12;
+  subLabels.forEach(function(lb){
+    if(lon){ if(!map.hasLayer(lb)) lb.addTo(map); }
+    else  { if(map.hasLayer(lb)) map.removeLayer(lb); }
+  });
+}
+function popupSub(x, m){
+  var h = '<div class="pp">';
+  h += '<div class="pp-hd">'+shapeSVG(stageShape(m.stage), commColor(m.commodity), 16, true)+
+       '<b>'+esc(x.name)+'</b></div>';
+  h += '<div class="pp-tags"><span class="pp-tag">子矿床 · '+esc(m.name)+'</span></div>';
+  var res = [];
+  if(x.tMt!=null) res.push(['矿石量', fmt(x.tMt)+' Mt']);
+  if(x.tCu!=null) res.push(['铜', fmt(x.tCu)+' kt']);
+  if(x.tAu!=null) res.push(['金', fmt(x.tAu)+' koz']);
+  if(x.tAg!=null) res.push(['银', fmt(x.tAg)+' koz']);
+  if(res.length) h += '<div class="pp-sec">资源量</div>'+ppTable(res);
+  var gr = [];
+  if(x.grCu!=null) gr.push(['铜品位', fmt(x.grCu)+' %']);
+  if(x.grAu!=null) gr.push(['金品位', fmt(x.grAu)+' g/t']);
+  if(x.grAg!=null) gr.push(['银品位', fmt(x.grAg)+' g/t']);
+  if(gr.length) h += '<div class="pp-sec">品位</div>'+ppTable(gr);
+  if(x.eq) h += '<div class="pp-sec">权益</div><div class="note">'+esc(x.eq)+'</div>';
+  if(x.note) h += '<div class="pp-sub">口径与来源</div><div class="why">'+esc(x.note)+'</div>';
+  h += '</div>';
+  return h;
 }
 
 /* ------------------------------------------------------------ 矿名标签排版
@@ -824,6 +896,21 @@ function popupMine(m){
     ]));
   }
 
+  if(m.subs && m.subs.length){
+    h += '<div class="pp-sec">含 '+m.subs.length+' 个矿床</div>';
+    var rows = m.subs.map(function(x){
+      var v = [];
+      if(x.tMt!=null) v.push(fmt(x.tMt)+' Mt');
+      if(x.tCu!=null) v.push(fmt(x.tCu)+' kt Cu');
+      if(x.tAu!=null) v.push(fmt(x.tAu)+' koz Au');
+      if(x.tAg!=null) v.push(fmt(x.tAg)+' koz Ag');
+      return [x.name, v.join(' · ') || '未单独披露'];
+    });
+    h += ppTable(rows);
+    var withXY = m.subs.filter(function(x){return x.lat!=null;}).length;
+    h += '<div class="why">'+(withXY? withXY+' 个有公开坐标，放大到 11 级可见；'
+          : '子矿床坐标未公开，地图不撒点；')+'其余仅列于此。</div>';
+  }
   if(m.note){
     h += '<div class="pp-sec">项目状态备注</div><div class="note">'+esc(m.note)+'</div>';
   }
@@ -882,6 +969,7 @@ function renderAll(){
     else  { if(map.hasLayer(p)) map.removeLayer(p); }
   }
 
+  applyZoomVisibility(map.getZoom());
   layoutLabels();
 
   document.getElementById('kpiShown').textContent = shown;
